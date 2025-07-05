@@ -37,16 +37,28 @@ func NewSwaggerVariableReplacer() *SwaggerVariableReplacer {
 
 // ProcessDirectory processes all Go files in a directory
 func (r *SwaggerVariableReplacer) ProcessDirectory(dir string) error {
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
+			fmt.Printf("Processing: %s\n", path)
+			return r.extractConstants(path)
+		}
+		return nil
+	})
+	if err != nil {
+		return fmt.Errorf("failed to extract constants: %s", err.Error())
+	}
+
 	return filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-
 		if strings.HasSuffix(path, ".go") && !strings.HasSuffix(path, "_test.go") {
 			fmt.Printf("Processing: %s\n", path)
-			return r.ProcessFile(path)
+			return r.replaceVariablesInComments(path)
 		}
-
 		return nil
 	})
 }
@@ -85,7 +97,7 @@ func (r *SwaggerVariableReplacer) extractConstants(filename string) error {
 								value := r.extractValue(valueSpec.Values[i])
 								if value != nil {
 									r.constants[name.Name] = value
-									fmt.Printf("Found constant: %s = %v\n", name.Name, value)
+									// fmt.Printf("Found constant: %s = %v\n", name.Name, value)
 								}
 							}
 						}
@@ -100,7 +112,7 @@ func (r *SwaggerVariableReplacer) extractConstants(filename string) error {
 						value := r.extractValue(x.Values[i])
 						if value != nil {
 							r.constants[name.Name] = value
-							fmt.Printf("Found variable: %s = %v\n", name.Name, value)
+							// fmt.Printf("Found variable: %s = %v\n", name.Name, value)
 						}
 					}
 				}
@@ -123,7 +135,11 @@ func (r *SwaggerVariableReplacer) extractValue(expr ast.Expr) interface{} {
 			}
 		case token.STRING:
 			// Remove quotes
-			return strings.Trim(x.Value, `"`)
+			if string(x.Value[0]) == `"` {
+				return strings.Trim(x.Value, `"`)
+			} else {
+				return strings.Trim(x.Value, "`")
+			}
 		case token.FLOAT:
 			if val, err := strconv.ParseFloat(x.Value, 64); err == nil {
 				return val
@@ -144,7 +160,7 @@ func (r *SwaggerVariableReplacer) extractValue(expr ast.Expr) interface{} {
 // replaceVariablesInComments reads file, replaces variables in comments, and writes back
 func (r *SwaggerVariableReplacer) replaceVariablesInComments(filename string) error {
 	// Read file
-	content, err := ioutil.ReadFile(filename)
+	content, err := os.ReadFile(filename)
 	if err != nil {
 		return err
 	}
@@ -168,7 +184,7 @@ func (r *SwaggerVariableReplacer) replaceVariablesInComments(filename string) er
 	// Write back if modified
 	if modified {
 		newContent := strings.Join(lines, "\n")
-		return ioutil.WriteFile(filename, []byte(newContent), 0644)
+		return os.WriteFile(filename, []byte(newContent), 0644)
 	}
 
 	return nil
@@ -185,6 +201,9 @@ func (r *SwaggerVariableReplacer) processCommentLine(line string) string {
 			if len(submatches) > 1 {
 				varName := submatches[1]
 				if value, exists := r.constants[varName]; exists {
+					if strVal, isStr := value.(string); isStr {
+						return fmt.Sprintf("%s", strVal)
+					}
 					return fmt.Sprintf("%v", value)
 				}
 				fmt.Printf("Warning: Variable '%s' not found\n", varName)
