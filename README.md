@@ -1,5 +1,6 @@
 <!-- ![GofmtComment](assets/gofmt-comment-logo.png) -->
-<img width="500px" src="assets/gofmt-comment-logo.png">
+<img width="500px" align="center" src="assets/gofmt-comment-logo.png">
+
 - How to build:
 ```bash
 go build
