@@ -134,12 +134,22 @@ func (r *SwaggerVariableReplacer) extractValue(expr ast.Expr) interface{} {
 				return val
 			}
 		case token.STRING:
+			str := ""
 			// Remove quotes
 			if string(x.Value[0]) == `"` {
-				return strings.Trim(x.Value, `"`)
+				str = strings.Trim(x.Value, `"`)
 			} else {
-				return strings.Trim(x.Value, "`")
+				str = strings.Trim(x.Value, "`")
 			}
+			// Add `//` to each line for miltiline strings
+			if strings.Contains(str, "\n") {
+				lines := strings.Split(str, "\n")
+				for i := 1; i < len(lines); i++ {
+					lines[i] = "// " + lines[i]
+				}
+				str = strings.Join(lines, "\n")
+			}
+			return str
 		case token.FLOAT:
 			if val, err := strconv.ParseFloat(x.Value, 64); err == nil {
 				return val
