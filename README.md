@@ -1,3 +1,5 @@
+![GofmtComment] (assets/gofmt-comment-logo.png)
+
 - How to build:
 ```bash
 go build
